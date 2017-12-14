@@ -1,3 +1,4 @@
 Library/
-UnityPackageManager
-Animation
+UnityPackageManager/
+Animation.sln
+Animation.csproj
