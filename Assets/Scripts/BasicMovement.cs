@@ -11,8 +11,7 @@ public class BasicMovement : MonoBehaviour {
     public bool grounded;
     private Vector3 curSpeed;
     private CharacterController cController;
-    Vector3 input = new Vector3(0, 0, 1);
-    private Vector3 moveDirection;
+    public Vector3 moveDirection;
 
 
     // Use this for initialization
@@ -35,6 +34,7 @@ public class BasicMovement : MonoBehaviour {
             moveDirection = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
             moveDirection = transform.TransformDirection(moveDirection);
             moveDirection *= (maxSpeed / tmp);
+			moveDirection.y = 0;
             if (Input.GetAxisRaw("Jump") == 1)
                 moveDirection.y = jumpSpeed;
 
