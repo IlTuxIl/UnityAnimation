@@ -222,6 +222,7 @@
     <Compile Include="Assets\Scripts\AnimScripts\IdleToRun.cs" />
     <Compile Include="Assets\Scripts\AnimScripts\IKFoot.cs" />
     <Compile Include="Assets\Scripts\BasicMovement.cs" />
+    <Compile Include="Assets\Scripts\WallGenerator.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="GenerateTargetFrameworkMonikerAttribute" />
