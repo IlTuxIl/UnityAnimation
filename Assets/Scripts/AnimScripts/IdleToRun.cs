@@ -22,7 +22,7 @@ public class IdleToRun : MonoBehaviour {
         
         myAnimator.SetFloat("vSpeed", Input.GetAxis("Vertical") / tmp);
         myAnimator.SetFloat("hSpeed", Input.GetAxis("Horizontal") / tmp);
-        myAnimator.SetBool("Grounded", cController.isGrounded);
+        //myAnimator.SetBool("Grounded", cController.isGrounded);
 
     }
 }
