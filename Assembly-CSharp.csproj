@@ -54,6 +54,7 @@
      <Compile Include="Assets\Scripts\AnimScripts\IdleToRun.cs" />
      <Compile Include="Assets\Scripts\AnimScripts\IKFoot.cs" />
      <Compile Include="Assets\Scripts\BasicMovement.cs" />
+     <Compile Include="Assets\Scripts\WallGenerator.cs" />
  <Reference Include="UnityEngine.UI">
  <HintPath>C:/Program Files/Unity/Editor/Data/UnityExtensions/Unity/GUISystem/UnityEngine.UI.dll</HintPath>
  </Reference>
