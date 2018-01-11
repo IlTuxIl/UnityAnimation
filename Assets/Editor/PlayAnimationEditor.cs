@@ -5,6 +5,7 @@ using UnityEngine;
 using System.Linq;
 using UnityEditor;
 using System.ComponentModel;
+using UnityEngine.Networking.Types;
 
 public class PlayAnimationEditor : EditorWindow
 {
@@ -94,11 +95,18 @@ public class PlayAnimationEditor : EditorWindow
 		//       Parcourir tous les points de la trajectoire et les afficher
 		// Vous pourrez appeler la fonction de dessin d'un point et/ou Handles.DrawLine(l_oldPoint, l_currentPoint);
 
+		if (m_trajectories == null)
+			return;
+		if (m_toggleTraj == null)
+			return;
+		if (m_skeleton == null)
+			return;
+
 		for(int i = 0; i < m_BodyJoints.Count; ++i){
 			if (m_toggleTraj [m_BodyJoints [i].name]) {
-				List<Vector3> l = m_trajectories [m_BodyJoints [i].name];
-				for (int j = 0; j < l.Count () - 1; ++j)
-					Handles.DrawLine (l [j], l [j + 1]);
+				List<Vector3> tmp = m_trajectories [m_BodyJoints [i].name];
+				for (int j = 0; j < tmp.Count - 1; ++j)
+					Handles.DrawLine (tmp [j], tmp [j + 1]);
 			}
 		}
 	}
@@ -112,23 +120,32 @@ public class PlayAnimationEditor : EditorWindow
 		// Créer ou vider dictionnaire m_toggleTraj qui va contenir la list des bool indiquant si la trajectoire est visible ou non
 		// Remplir le m_trajectories[m_BodyJoints[i].name] avec les positions des points
 		// Voir AnimationMode.BeginSampling(); .... AnimationMode.EndSampling(); qui se trouve dans playAnimation
+		if(m_trajectories == null)
+			m_trajectories = new Dictionary<string, List<Vector3>>();
 
-		if (m_trajectories.Count != 0)
-			m_trajectories.Clear();
-		if (m_toggleTraj.Count != 0)
-			m_trajectories.Clear();
-		
-		for (int i = 0; i < m_BodyJoints.Count (); ++i) {
-			List<Vector3> tmp;
+		if (m_toggleTraj == null)
+			m_toggleTraj = new Dictionary<string, bool> ();
 
+		m_trajectories.Clear();
+		m_toggleTraj.Clear();
 
+		m_f_endTime = m_animationClip.length;
+		m_f_frameDuration = 1.0f / m_animationClip.frameRate;
 
+		if (!AnimationMode.InAnimationMode ())
+			AnimationMode.StartAnimationMode ();
 
-			//m_trajectories.Add(m_BodyJoints[i].name, tmp);
+		for (int i = 0; i < m_BodyJoints.Count; ++i) {
+			List<Vector3> tmp = new List<Vector3>();
+
+			for (double j = m_f_startTime; j < m_f_endTime; j += m_f_frameDuration) {
+				samplePosture ((float)j);
+				tmp.Add(m_BodyJoints[i].transform.position);
+			}
+
+			m_trajectories.Add(m_BodyJoints[i].name, tmp);
+			m_toggleTraj.Add(m_BodyJoints[i].name, true);
 		}
-
-
-
 	}
 
 
@@ -136,7 +153,7 @@ public class PlayAnimationEditor : EditorWindow
 	// Use OnGUI to draw all the controls of your window.
 	public void OnGUI()
 	{
-		if (m_toggleTraj != null) m_toggleTraj.Clear();
+		//if (m_toggleTraj != null) m_toggleTraj.Clear();
 
 		// We need to select a GameObject in the Scene
 		if (m_skeleton == null)
@@ -177,6 +194,10 @@ public class PlayAnimationEditor : EditorWindow
 		// If the user has selected an AnimationClip
 		if (m_animationClip != null)
 		{
+
+			if (GUILayout.Button ("Gaussian filter"))
+				GaussianAnim ();
+
 			// Get the Length of the current Animation
 			m_f_endTime = m_animationClip.length;
 			// Get the frame Duration of the current Animation
@@ -221,6 +242,11 @@ public class PlayAnimationEditor : EditorWindow
 			// Voir la doc : https://docs.unity3d.com/ScriptReference/EditorGUILayout.Toggle.html
 			// Utilisez la variables : m_toggleTraj[m_BodyJoints[i].name]
 
+			for (int i = 0; i < m_BodyJoints.Count; ++i) {
+				bool tmp = m_toggleTraj[m_BodyJoints[i].name];
+				tmp = EditorGUILayout.Toggle(m_BodyJoints[i].name, tmp);
+				m_toggleTraj[m_BodyJoints[i].name] = tmp;
+			}
 
 		}
 
@@ -241,6 +267,22 @@ public class PlayAnimationEditor : EditorWindow
 		// modifier le temps : m_f_time
 		// appeler samplePosture qui est ue fonction un peu plus bas
 
+		if (m_skeleton == null)
+			return;
+		if (m_animationClip == null)
+			return;
+		if (m_b_isRunning == false)
+			return;
+
+		Debug.Log (m_f_time);
+		samplePosture (m_f_time);
+		m_f_time += m_f_frameDuration * m_f_scaleTime;
+
+		if (m_f_time >= m_f_endTime)
+			m_f_time = m_f_startTime;
+
+		//if (!AnimationMode.InAnimationMode ())
+		//	AnimationMode.StartAnimationMode ();
 
 
 		SceneView.RepaintAll();
@@ -282,4 +324,22 @@ public class PlayAnimationEditor : EditorWindow
 		// so that it will no longer do any drawing.
 		SceneView.onSceneGUIDelegate -= this.OnSceneGUI;
 	}
+
+	public void GaussianAnim(){
+		AnimationClip clip = new AnimationClip ();
+		clip.legacy = m_animationClip.legacy;
+		foreach(EditorCurveBinding binding in AnimationUtility.GetCurveBindings(m_animationClip)){
+			AnimationCurve curve = AnimationUtility.GetEditorCurve (m_animationClip, binding);
+			//TODO
+			for(int time = 0; time < curve.length; ++time){
+				float v = curve.keys[time].value;
+				curve.MoveKey(time, new Keyframe(time, v));
+			}
+			AnimationUtility.SetEditorCurve (clip, binding, curve);
+
+		}
+
+		AssetDatabase.CreateAsset (clip, "Assets/Gaussian.anim");
+	}
+
 }
