@@ -6,6 +6,7 @@ using System.Linq;
 using UnityEditor;
 using System.ComponentModel;
 using UnityEngine.Networking.Types;
+using System;
 
 public class PlayAnimationEditor : EditorWindow
 {
@@ -49,8 +50,6 @@ public class PlayAnimationEditor : EditorWindow
 
 	// Dictionnary of string & bool which contains all the bool used by the toggle button
 	protected Dictionary<string, bool> m_toggleTraj;
-
-
 
 	// The new item in the menu
 	[MenuItem("Window/PlayAnimation", false, 2000)]
@@ -198,6 +197,13 @@ public class PlayAnimationEditor : EditorWindow
 			if (GUILayout.Button ("Gaussian filter"))
 				GaussianAnim ();
 
+			if (GUILayout.Button ("Edit")) {
+				GaussianAnim ();
+				//GUILayout.Slider(
+			}
+
+
+
 			// Get the Length of the current Animation
 			m_f_endTime = m_animationClip.length;
 			// Get the frame Duration of the current Animation
@@ -246,8 +252,13 @@ public class PlayAnimationEditor : EditorWindow
 				bool tmp = m_toggleTraj[m_BodyJoints[i].name];
 				tmp = EditorGUILayout.Toggle(m_BodyJoints[i].name, tmp);
 				m_toggleTraj[m_BodyJoints[i].name] = tmp;
-			}
 
+				/*EditorCurveBinding binding in AnimationUtility.GetCurveBindings(m_animationClip)
+				AnimationCurve curve = AnimationUtility.GetEditorCurve(m_animationClip, binding);
+				EditorGUILayout.CurveField("Animation on X", curve);
+				*/
+            }
+			Debug.Log (m_BodyJoints.Count);
 		}
 
 		// End the vertical group
@@ -274,7 +285,7 @@ public class PlayAnimationEditor : EditorWindow
 		if (m_b_isRunning == false)
 			return;
 
-		Debug.Log (m_f_time);
+		
 		samplePosture (m_f_time);
 		m_f_time += m_f_frameDuration * m_f_scaleTime;
 
@@ -325,21 +336,104 @@ public class PlayAnimationEditor : EditorWindow
 		SceneView.onSceneGUIDelegate -= this.OnSceneGUI;
 	}
 
-	public void GaussianAnim(){
-		AnimationClip clip = new AnimationClip ();
-		clip.legacy = m_animationClip.legacy;
-		foreach(EditorCurveBinding binding in AnimationUtility.GetCurveBindings(m_animationClip)){
-			AnimationCurve curve = AnimationUtility.GetEditorCurve (m_animationClip, binding);
-			//TODO
-			for(int time = 0; time < curve.length; ++time){
-				float v = curve.keys[time].value;
-				curve.MoveKey(time, new Keyframe(time, v));
-			}
-			AnimationUtility.SetEditorCurve (clip, binding, curve);
+    public void GaussianAnim()
+    {
+        AnimationClip clip = new AnimationClip();  // comportera la copie de m_animationClip mais filtrer
 
+        // Copy the m_animationClip in the local variale clip
+        clip.legacy = m_animationClip.legacy;
+
+        foreach (EditorCurveBinding binding in AnimationUtility.GetCurveBindings(m_animationClip)){
+
+            AnimationCurve curve = AnimationUtility.GetEditorCurve(m_animationClip, binding);
+
+            //TODO : editer chaque courbe ici avec
+            // Parcourir toute la courbe avec comme longueur : curve.length
+            //  float v = curve.keys[time].value;
+            //  curve.MoveKey(time, new Keyframe(time, v));
+            int fenetre = 5;
+            double[] gaussianClip = new double[curve.length];
+
+            for (int i = fenetre; i < curve.length - fenetre; i++){
+                double val = 0, som = 0;
+
+                for (int j = -fenetre; j <= fenetre; j++){
+                    double coeff = (1.0 / Math.Sqrt(2.0 * Math.PI)) * Math.Exp(-((j * j) / 2.0));
+
+                    val += coeff * curve.keys[i + j].value;
+                    som += coeff;
+                }
+
+                gaussianClip[i] = (val / som);
+            }
+
+            for (int i = fenetre; i < curve.length - fenetre; i++)
+            	curve.MoveKey(i, new Keyframe(curve.keys[i].time, (float)gaussianClip[i]));
+            
+			AnimationUtility.SetEditorCurve(clip, binding, curve);
+        }
+
+        // Si vous avez besoin de (quaternion+translation) il faut les regrouper les courbes
+        // il y a 7 courbes par articulations, par exemple pour le noeud "root" il y a
+        // "rootT.x"  "rootT.y" "rootT.z" pour la translation
+        // "rootQ.x"  "rootQ.y" "rootQ.z" "rootQ.w" pour le quaternion
+        // Il faut donc regrouper ces 4 courbes en un tableau de quaternion
+
+        // Save the local variale clip
+        AssetDatabase.CreateAsset(clip, "Assets/Gaussian" + m_animationClip.name + ".anim");
+    }
+
+	void multiResDecompose(){
+
+		List<float> tab = new List<float>();
+		List<List<float>> listMoy = new List<List<float>>();
+		List<List<float>> listEcart = new List<List<float>>();
+
+		listMoy.Add(new List<float>());
+		listEcart.Add(new List<float>());
+
+		for (int i = 0; i < tab.Count; ++i) {
+			listMoy [i].Add (tab [i]);
+			listEcart [i].Add (0.0f);
 		}
 
-		AssetDatabase.CreateAsset (clip, "Assets/Gaussian.anim");
+		int cpt = 1;
+		while (listMoy [cpt - 1].Count > 1) {
+
+			listMoy.Add(new List<float>());
+			listEcart.Add(new List<float>());
+
+			for (int i = 0; i < listMoy[cpt-1].Count - 2; i += 2) {
+				float moy = (tab [i] + tab [i + 1]) / 2;
+				float ecart = tab [i] - moy;
+				float ecart2 = tab [i+1] - moy;
+
+				listMoy [cpt].Add (moy);
+				listEcart [cpt].Add (ecart);
+				listEcart [cpt].Add (ecart2);
+
+			}
+			cpt++;
+		}
+	}
+
+	void multiResRecompose(List<float> coeffs){
+		List<List<float>> listMoy = new List<List<float>>();;
+		List<List<float>> listEcart = new List<List<float>>();
+
+		listMoy.Add(new List<float>());
+		listEcart.Add(new List<float>());
+		for (int j = coeffs.Count - 1; j >= 0; --j) {
+			int k = 0;
+			for (int i = 0; i < listMoy [j-1].Count - 2; i += 2) {
+
+				listMoy [j-1][i] = listMoy [j][i] - (listEcart[j][k] * coeffs[j]);
+				++k;
+				listMoy [j-1][i+1] = listMoy [j][i] + (listEcart[j][k] * coeffs[j]);
+				++k;
+			}
+
+		}
 	}
 
 }
